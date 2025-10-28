@@ -92,6 +92,18 @@ class SlicerVisitor(ast.NodeVisitor):
                             )
                         )
 
+                        # Check if RHS is a function call to an imported function
+                        # If so, follow into it because it produces the tracked variable
+                        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                            func_call = node.value
+                            if self.import_resolver and func_call.func.id in self.imports:
+                                # This function produces a tracked variable, so follow into it
+                                arg_vars = set()
+                                for arg in func_call.args:
+                                    arg_vars.update(self._get_names_from_expr(arg))
+                                if arg_vars:  # Only if it has arguments
+                                    self._analyze_cross_file_call(func_call, arg_vars, node.lineno)
+
                         # Add RHS vars to relevant set
                         self.relevant_vars.update(rhs_vars)
 
@@ -241,20 +253,17 @@ class SlicerVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         """Track function calls."""
-        if self.started or self.direction == SliceDirection.BACKWARD:
+        # For forward slicing, track where variables are used in function calls
+        # For backward slicing, we only care about calls that PRODUCE tracked variables (handled in visit_Assign)
+        if self.direction == SliceDirection.FORWARD and self.started:
             # Check arguments
             for arg in node.args:
                 arg_vars = self._get_names_from_expr(arg)
-                if self.direction == SliceDirection.BACKWARD:
-                    check_set = self.relevant_vars
-                    # Only include function calls at or before the target line
-                    if not (hasattr(node, "lineno") and node.lineno <= self.target_line):
-                        continue
-                else:
-                    # For forward slicing, only include if in same function as target
-                    if not (self.started and self.current_function == self.target_function):
-                        continue
-                    check_set = self.affected_vars
+                check_set = self.affected_vars
+
+                # Only include if in same function as target
+                if not (self.started and self.current_function == self.target_function):
+                    continue
 
                 if arg_vars & check_set and hasattr(node, "lineno"):
                     code = (
