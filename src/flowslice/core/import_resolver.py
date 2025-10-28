@@ -16,7 +16,10 @@ class ImportResolver:
         """
         self.root_path = root_path
         self.import_map: dict[str, tuple[Path, str]] = {}  # name -> (file_path, module_name)
-        self.ast_cache: dict[Path, ast.Module] = {}  # Cache parsed ASTs
+
+        # Performance caches with mtime tracking
+        self.ast_cache: dict[str, tuple[float, ast.Module]] = {}  # path -> (mtime, ast)
+        self.import_cache: dict[str, tuple[float, dict[str, tuple[Path, str]]]] = {}  # file -> (mtime, imports)
 
     def resolve_import(self, module_name: str, current_file: Path) -> Optional[Path]:
         """Resolve an import to a file path.
@@ -96,7 +99,7 @@ class ImportResolver:
         return (module_path, name)
 
     def parse_imports(self, tree: ast.Module, file_path: Path) -> dict[str, tuple[Path, str]]:
-        """Parse import statements from an AST.
+        """Parse import statements from an AST with caching.
 
         Args:
             tree: The AST to parse
@@ -105,6 +108,16 @@ class ImportResolver:
         Returns:
             Dictionary mapping imported names to (file_path, original_name)
         """
+        file_str = str(file_path)
+        current_mtime = file_path.stat().st_mtime
+
+        # Check cache
+        if file_str in self.import_cache:
+            cached_mtime, cached_imports = self.import_cache[file_str]
+            if cached_mtime == current_mtime:
+                return cached_imports
+
+        # Parse imports
         imports = {}
 
         for node in ast.walk(tree):
@@ -129,10 +142,12 @@ class ImportResolver:
                         imported_name = alias.asname if alias.asname else alias.name
                         imports[imported_name] = (module_path, module_name)
 
+        # Cache and return
+        self.import_cache[file_str] = (current_mtime, imports)
         return imports
 
     def get_ast(self, file_path: Path) -> Optional[ast.Module]:
-        """Get cached or parse AST for a file.
+        """Get cached or parse AST for a file with mtime-based caching.
 
         Args:
             file_path: Path to the Python file
@@ -140,14 +155,22 @@ class ImportResolver:
         Returns:
             Parsed AST module, or None if parsing fails
         """
-        if file_path in self.ast_cache:
-            return self.ast_cache[file_path]
+        file_str = str(file_path)
 
         try:
+            current_mtime = file_path.stat().st_mtime
+
+            # Check cache
+            if file_str in self.ast_cache:
+                cached_mtime, cached_ast = self.ast_cache[file_str]
+                if cached_mtime == current_mtime:
+                    return cached_ast
+
+            # Parse and cache
             with open(file_path, encoding="utf-8") as f:
                 source = f.read()
             tree = ast.parse(source, filename=str(file_path))
-            self.ast_cache[file_path] = tree
+            self.ast_cache[file_str] = (current_mtime, tree)
             return tree
         except (OSError, SyntaxError):
             return None

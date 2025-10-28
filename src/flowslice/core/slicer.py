@@ -818,6 +818,38 @@ class Slicer:
         self.import_resolver = ImportResolver(self.root_path) if enable_cross_file else None
         self.function_defs: dict[str, ast.FunctionDef] = {}  # Cache of function definitions
 
+        # Performance caches
+        self._ast_cache: dict[str, tuple[float, ast.AST]] = {}  # path -> (mtime, ast)
+        self._func_cache: dict[str, tuple[float, dict[str, ast.FunctionDef]]] = {}  # path -> (mtime, funcs)
+
+    def _parse_file_cached(self, file_path: Path) -> ast.AST:
+        """Parse a Python file with caching based on modification time.
+
+        Args:
+            file_path: Path to the Python file
+
+        Returns:
+            Parsed AST
+
+        Raises:
+            SyntaxError: If the file contains invalid Python syntax
+        """
+        file_str = str(file_path)
+        current_mtime = file_path.stat().st_mtime
+
+        # Check cache
+        if file_str in self._ast_cache:
+            cached_mtime, cached_ast = self._ast_cache[file_str]
+            if cached_mtime == current_mtime:
+                return cached_ast
+
+        # Parse and cache
+        with open(file_path, encoding="utf-8") as f:
+            source = f.read()
+        tree = ast.parse(source)
+        self._ast_cache[file_str] = (current_mtime, tree)
+        return tree
+
     def _find_function_definitions(self, tree: ast.AST) -> dict[str, ast.FunctionDef]:
         """Find all function definitions in the AST.
 
@@ -831,6 +863,30 @@ class Slicer:
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef):
                 functions[node.name] = node
+        return functions
+
+    def _get_function_definitions_cached(self, file_path: Path, tree: ast.AST) -> dict[str, ast.FunctionDef]:
+        """Get function definitions with caching.
+
+        Args:
+            file_path: Path to the file
+            tree: Parsed AST (used if not cached)
+
+        Returns:
+            Dictionary mapping function names to their FunctionDef nodes
+        """
+        file_str = str(file_path)
+        current_mtime = file_path.stat().st_mtime
+
+        # Check cache
+        if file_str in self._func_cache:
+            cached_mtime, cached_funcs = self._func_cache[file_str]
+            if cached_mtime == current_mtime:
+                return cached_funcs
+
+        # Compute and cache
+        functions = self._find_function_definitions(tree)
+        self._func_cache[file_str] = (current_mtime, functions)
         return functions
 
     def slice(
@@ -856,14 +912,15 @@ class Slicer:
         if not full_path.exists():
             full_path = Path(file_path)
 
+        # Use cached AST parsing
+        tree = self._parse_file_cached(full_path)
+
         with open(full_path) as f:
             source = f.read()
-
         source_lines = source.split("\n")
-        tree = ast.parse(source, filename=str(full_path))
 
-        # Find all function definitions in the file for inter-procedural analysis
-        self.function_defs = self._find_function_definitions(tree)
+        # Find all function definitions in the file for inter-procedural analysis (with caching)
+        self.function_defs = self._get_function_definitions_cached(full_path, tree)
 
         # Parse imports if cross-file analysis is enabled
         imports = {}
