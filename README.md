@@ -33,10 +33,17 @@ flowslice example.py:26:result forward json    # JSON format (for tools)
 
 ### Output Formats
 
-- **tree** (default): Classic tree view, great for quick scans
-- **graph**: Grouped DAG view showing convergence/divergence - best for understanding complex dataflows
+All formatters support **color-coded output** with cross-file indicators:
+- 🔗 **Cross-file nodes** highlighted in magenta (bold)
+- 📁 **Local nodes** shown in standard colors
+- ⭐ **Target line** highlighted in yellow
+
+- **tree** (default): Chronological tree view with inline cross-file nodes
+- **graph**: Grouped DAG view showing convergence/divergence patterns
 - **json**: Machine-readable JSON output for tool integration
 - **dot**: Graphviz DOT format for graph visualization (pipe to `dot -Tpng > output.png`)
+
+**Color Support:** Colors auto-disable when piping to files or when `NO_COLOR` env var is set.
 ```
 
 ## 📖 Example Output
@@ -147,10 +154,16 @@ print(json_output)
 ```
 
 **Output formats:**
-- **Tree**: Classic tree view, best for quick scans
+- **Tree**: Chronological tree view with color-coded cross-file indicators
 - **Graph**: Grouped DAG view showing convergence/divergence in dataflow
 - **JSON**: Machine-readable for tool integration
 - **DOT**: Graphviz format for graph visualization
+
+**Visualization Features:**
+- 🎨 Color-coded output (auto-disabled for pipes and `NO_COLOR`)
+- 🔗 Cross-file nodes clearly marked and highlighted
+- ⭐ Target line prominently displayed
+- 📊 Inline chronological ordering for better flow understanding
 
 ## 📚 Documentation
 

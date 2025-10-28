@@ -1,6 +1,7 @@
 """Graph-based formatter showing convergence/divergence in dataflow."""
 
 from flowslice.core.models import SliceDirection, SliceNode, SliceResult
+from flowslice.formatters.colors import Colors, colorize
 
 
 class GraphFormatter:
@@ -23,13 +24,14 @@ class GraphFormatter:
         output = []
 
         # Header
-        output.append("╔" + "═" * 70 + "╗")
+        output.append(colorize("╔" + "═" * 70 + "╗", Colors.CYAN))
         header_text = (
             f"  GRAPH VIEW: {result.target_variable} @ "
             f"{result.target_file}:{result.target_line}"
         )
-        output.append(f"║{header_text}{' ' * (70 - len(header_text))}║")
-        output.append("╚" + "═" * 70 + "╝")
+        header_line = f"║{header_text}{' ' * (70 - len(header_text))}║"
+        output.append(colorize(header_line, Colors.YELLOW, bold=True))
+        output.append(colorize("╚" + "═" * 70 + "╝", Colors.CYAN))
         output.append("")
 
         if direction in (SliceDirection.BACKWARD, SliceDirection.BOTH):
@@ -47,13 +49,23 @@ class GraphFormatter:
                 output.append("")
 
         # Statistics
-        output.append("📊 STATISTICS:")
+        output.append(colorize("📊 STATISTICS:", Colors.CYAN, bold=True))
         total_nodes = len(result.backward_slice) + len(result.forward_slice)
-        output.append(f"   - Total nodes: {total_nodes}")
+        output.append(
+            colorize("   - Total nodes: ", Colors.WHITE)
+            + colorize(str(total_nodes), Colors.YELLOW, bold=True)
+        )
 
         backward_lines = len(set(n.line for n in result.backward_slice))
         forward_lines = len(set(n.line for n in result.forward_slice))
-        output.append(f"   - Backward: {backward_lines} lines, Forward: {forward_lines} lines")
+        stats_line = (
+            colorize("   - Backward: ", Colors.WHITE)
+            + colorize(f"{backward_lines}", Colors.GREEN, bold=True)
+            + colorize(" lines, Forward: ", Colors.WHITE)
+            + colorize(f"{forward_lines}", Colors.BLUE, bold=True)
+            + colorize(" lines", Colors.WHITE)
+        )
+        output.append(stats_line)
 
         return "\n".join(output)
 
@@ -61,8 +73,9 @@ class GraphFormatter:
     def _format_backward_graph(result: SliceResult) -> str:
         """Format backward slice showing convergence."""
         output = []
-        output.append("⬅️  BACKWARD SLICE (How did we get here?)")
-        output.append("─" * 72)
+        title = "⬅️  BACKWARD SLICE (How did we get here?)"
+        output.append(colorize(title, Colors.GREEN, bold=True))
+        output.append(colorize("─" * 72, Colors.BRIGHT_BLACK))
         output.append("")
 
         # Find the target node
@@ -70,13 +83,15 @@ class GraphFormatter:
 
         if target_nodes:
             target = target_nodes[0]
-            output.append(f"  🎯 TARGET: {result.target_variable} (Line {result.target_line})")
-            output.append(f"     └─ {target.code.strip()}")
+            target_text = f"  🎯 TARGET: {result.target_variable} (Line {result.target_line})"
+            output.append(colorize(target_text, Colors.YELLOW, bold=True))
+            output.append(colorize(f"     └─ {target.code.strip()}", Colors.WHITE))
             output.append("")
 
             # Group dependencies
             if target.dependencies:
-                output.append(f"  📥 DIRECT DEPENDENCIES ({len(target.dependencies)}):")
+                deps_header = f"  📥 DIRECT DEPENDENCIES ({len(target.dependencies)}):"
+                output.append(colorize(deps_header, Colors.CYAN, bold=True))
                 output.append("")
 
                 # Find nodes for each dependency
@@ -96,18 +111,27 @@ class GraphFormatter:
 
                     if dep in dep_nodes and dep_nodes[dep]:
                         node = dep_nodes[dep][0]
-                        output.append(f"{prefix} {dep} (Line {node.line})")
-                        output.append(f"     {'  ' if is_last else '│ '}   {node.code.strip()}")
+                        # Indicate if cross-file
+                        is_cross_file = node.file != result.target_file
+                        file_indicator = " 🔗" if is_cross_file else ""
+                        dep_color = Colors.MAGENTA if is_cross_file else Colors.GREEN
+
+                        dep_line = f"{prefix} {dep} (Line {node.line}){file_indicator}"
+                        output.append(colorize(dep_line, dep_color, bold=is_cross_file))
+                        indent = "  " if is_last else "│ "
+                        code_line = f"     {indent}   {node.code.strip()}"
+                        output.append(colorize(code_line, Colors.BRIGHT_BLACK))
                         if node.dependencies:
                             deps_str = ", ".join(node.dependencies)
-                            indent = "  " if is_last else "│ "
-                            output.append(f"     {indent}   └─ depends on: {deps_str}")
+                            deps_line = f"     {indent}   └─ depends on: {deps_str}"
+                            output.append(colorize(deps_line, Colors.BRIGHT_BLACK))
                     else:
                         # External or not found
-                        output.append(f"{prefix} {dep} (external or parameter)")
+                        ext_line = f"{prefix} {dep} (external or parameter)"
+                        output.append(colorize(ext_line, Colors.BRIGHT_BLACK))
 
                     if not is_last:
-                        output.append("     │")
+                        output.append(colorize("     │", Colors.BRIGHT_BLACK))
 
         output.append("")
         return "\n".join(output)
@@ -116,8 +140,9 @@ class GraphFormatter:
     def _format_forward_graph(result: SliceResult) -> str:
         """Format forward slice showing divergence."""
         output = []
-        output.append("➡️  FORWARD SLICE (Where does it go?)")
-        output.append("─" * 72)
+        title = "➡️  FORWARD SLICE (Where does it go?)"
+        output.append(colorize(title, Colors.BLUE, bold=True))
+        output.append(colorize("─" * 72, Colors.BRIGHT_BLACK))
         output.append("")
 
         # Group nodes by type
@@ -136,25 +161,38 @@ class GraphFormatter:
             else:
                 other_uses.append(node)
 
-        output.append(f"  🎯 SOURCE: {result.target_variable} (Line {result.target_line})")
+        source_text = f"  🎯 SOURCE: {result.target_variable} (Line {result.target_line})"
+        output.append(colorize(source_text, Colors.YELLOW, bold=True))
         output.append("")
 
         # Show divergence to derived variables
         if assignments:
-            output.append(f"  🌿 DERIVED VARIABLES ({len(assignments)}):")
-            output.append("     Variables that receive data from the source")
+            header = f"  🌿 DERIVED VARIABLES ({len(assignments)}):"
+            output.append(colorize(header, Colors.CYAN, bold=True))
+            desc = "     Variables that receive data from the source"
+            output.append(colorize(desc, Colors.BRIGHT_BLACK))
             output.append("")
 
             for i, node in enumerate(assignments):
                 is_last = i == len(assignments) - 1
                 prefix = "     └─" if is_last else "     ├─"
-                output.append(f"{prefix} {node.variable} (Line {node.line})")
-                output.append(f"     {'  ' if is_last else '│ '}   {node.code.strip()}")
+
+                # Indicate if cross-file
+                is_cross_file = node.file != result.target_file
+                file_indicator = " 🔗" if is_cross_file else ""
+                var_color = Colors.MAGENTA if is_cross_file else Colors.BLUE
+
+                var_line = f"{prefix} {node.variable} (Line {node.line}){file_indicator}"
+                output.append(colorize(var_line, var_color, bold=is_cross_file))
+                indent = "  " if is_last else "│ "
+                code_line = f"     {indent}   {node.code.strip()}"
+                output.append(colorize(code_line, Colors.BRIGHT_BLACK))
                 if node.dependencies:
                     deps_str = ", ".join(node.dependencies)
-                    output.append(f"     {'  ' if is_last else '│ '}   └─ uses: {deps_str}")
+                    deps_line = f"     {indent}   └─ uses: {deps_str}"
+                    output.append(colorize(deps_line, Colors.BRIGHT_BLACK))
                 if not is_last:
-                    output.append("     │")
+                    output.append(colorize("     │", Colors.BRIGHT_BLACK))
             output.append("")
 
         # Show function calls
@@ -166,34 +204,53 @@ class GraphFormatter:
                 if key not in unique_calls:
                     unique_calls[key] = node
 
-            output.append(f"  📤 PASSED TO FUNCTIONS ({len(unique_calls)}):")
+            header = f"  📤 PASSED TO FUNCTIONS ({len(unique_calls)}):"
+            output.append(colorize(header, Colors.CYAN, bold=True))
             output.append("")
 
             for i, (_, node) in enumerate(sorted(unique_calls.items())):
                 is_last = i == len(unique_calls) - 1
                 prefix = "     └─" if is_last else "     ├─"
 
+                # Indicate if cross-file
+                is_cross_file = node.file != result.target_file
+                file_indicator = " 🔗" if is_cross_file else ""
+                func_color = Colors.MAGENTA if is_cross_file else Colors.BLUE
+
                 # Extract function name from operation
                 func_name = node.operation.replace("passed to ", "")
-                output.append(f"{prefix} {func_name} (Line {node.line})")
-                output.append(f"     {'  ' if is_last else '│ '}   {node.code.strip()}")
+                func_line = f"{prefix} {func_name} (Line {node.line}){file_indicator}"
+                output.append(colorize(func_line, func_color, bold=is_cross_file))
+                indent = "  " if is_last else "│ "
+                code_line = f"     {indent}   {node.code.strip()}"
+                output.append(colorize(code_line, Colors.BRIGHT_BLACK))
                 if not is_last:
-                    output.append("     │")
+                    output.append(colorize("     │", Colors.BRIGHT_BLACK))
 
             output.append("")
 
         # Show other uses
         if other_uses:
-            output.append(f"  🔧 OTHER USES ({len(other_uses)}):")
+            header = f"  🔧 OTHER USES ({len(other_uses)}):"
+            output.append(colorize(header, Colors.CYAN, bold=True))
             output.append("")
 
             for i, node in enumerate(other_uses):
                 is_last = i == len(other_uses) - 1
                 prefix = "     └─" if is_last else "     ├─"
-                output.append(f"{prefix} Line {node.line}: {node.operation}")
-                output.append(f"     {'  ' if is_last else '│ '}   {node.code.strip()}")
+
+                # Indicate if cross-file
+                is_cross_file = node.file != result.target_file
+                file_indicator = " 🔗" if is_cross_file else ""
+                use_color = Colors.MAGENTA if is_cross_file else Colors.BLUE
+
+                use_line = f"{prefix} Line {node.line}: {node.operation}{file_indicator}"
+                output.append(colorize(use_line, use_color, bold=is_cross_file))
+                indent = "  " if is_last else "│ "
+                code_line = f"     {indent}   {node.code.strip()}"
+                output.append(colorize(code_line, Colors.BRIGHT_BLACK))
                 if not is_last:
-                    output.append("     │")
+                    output.append(colorize("     │", Colors.BRIGHT_BLACK))
 
             output.append("")
 
