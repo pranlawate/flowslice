@@ -81,6 +81,9 @@ class SlicerVisitor(ast.NodeVisitor):
                             else ""
                         )
 
+                        # Filter to most specific attribute paths
+                        filtered_deps = self._filter_most_specific(rhs_vars)
+
                         self.nodes.append(
                             SliceNode(
                                 file=self.current_file,
@@ -89,7 +92,7 @@ class SlicerVisitor(ast.NodeVisitor):
                                 code=code,
                                 variable=target.id,
                                 operation="assignment",
-                                dependencies=list(rhs_vars),
+                                dependencies=list(filtered_deps),
                             )
                         )
 
@@ -304,13 +307,72 @@ class SlicerVisitor(ast.NodeVisitor):
             return f"{self._get_base_name(node.value)}.{node.attr}"
         return "<unknown>"
 
+    def _filter_most_specific(self, names: set[str]) -> set[str]:
+        """Filter to keep only the most specific attribute paths.
+
+        If we have both "args" and "args.file", keep only "args.file".
+        If we have "obj.a" and "obj.b", keep both (different attributes).
+
+        Args:
+            names: Set of variable/attribute names
+
+        Returns:
+            Filtered set with only most specific paths
+        """
+        if not names:
+            return names
+
+        # Group by base name
+        result = set()
+        for name in names:
+            # Check if this name is a prefix of any other name
+            is_prefix = False
+            for other in names:
+                if other != name and other.startswith(name + "."):
+                    # This name is a prefix of a more specific path
+                    is_prefix = True
+                    break
+            if not is_prefix:
+                result.add(name)
+
+        return result
+
     def _get_names_from_expr(self, expr: ast.expr) -> set[str]:
-        """Extract all variable names from an expression."""
+        """Extract all variable names from an expression, including attributes.
+
+        Examples:
+            args.file -> {"args.file", "args"}
+            obj.attr.subattr -> {"obj.attr.subattr", "obj.attr", "obj"}
+            simple_var -> {"simple_var"}
+        """
         names: set[str] = set()
 
         class NameCollector(ast.NodeVisitor):
             def visit_Name(self, node: ast.Name) -> None:
                 names.add(node.id)
+
+            def visit_Attribute(self, node: ast.Attribute) -> None:
+                # Get the full attribute path
+                full_path = self._get_full_attr_path(node)
+                if full_path:
+                    names.add(full_path)
+                    # Also add intermediate paths for tracking
+                    # e.g., for "a.b.c" add "a.b" and "a"
+                    parts = full_path.split(".")
+                    for i in range(len(parts) - 1, 0, -1):
+                        names.add(".".join(parts[:i]))
+                # Continue visiting to get nested attributes
+                self.generic_visit(node)
+
+            def _get_full_attr_path(self, node: ast.expr) -> str:
+                """Build full attribute path like 'obj.attr.subattr'."""
+                if isinstance(node, ast.Name):
+                    return node.id
+                elif isinstance(node, ast.Attribute):
+                    base = self._get_full_attr_path(node.value)
+                    if base:
+                        return f"{base}.{node.attr}"
+                return ""
 
         NameCollector().visit(expr)
         return names
