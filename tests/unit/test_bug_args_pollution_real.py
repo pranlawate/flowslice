@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from flowslice.core.models import SliceDirection
 from flowslice.core.slicer import Slicer
 
@@ -63,7 +61,7 @@ def main(args):
         # Count how many nodes reference args
         args_references = [node for node in result.backward_slice if "args" in node.code]
 
-        print(f"\n=== ANALYSIS ===")
+        print("\n=== ANALYSIS ===")
         print(f"Total slice nodes: {len(result.backward_slice)}")
         print(f"Nodes referencing 'args': {len(args_references)}")
 

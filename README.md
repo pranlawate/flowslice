@@ -36,6 +36,7 @@ flowslice example.py:26:result forward json    # JSON format (for tools)
 - **tree** (default): Classic tree view, great for quick scans
 - **graph**: Grouped DAG view showing convergence/divergence - best for understanding complex dataflows
 - **json**: Machine-readable JSON output for tool integration
+- **dot**: Graphviz DOT format for graph visualization (pipe to `dot -Tpng > output.png`)
 ```
 
 ## 📖 Example Output
@@ -78,8 +79,8 @@ flowslice example.py:26:result forward json    # JSON format (for tools)
 - ✅ Package structure & refactoring
 - ✅ **87 tests passing** (88% core coverage)
 - ✅ Type-safe (mypy --strict passing)
-- ✅ CLI working with 3 output formats (`flowslice` command)
-- ✅ JSON, Tree, & Graph output formatters
+- ✅ CLI working with 4 output formats (`flowslice` command)
+- ✅ JSON, Tree, Graph, & DOT output formatters
 - ✅ Derived variable tracking (intra-procedural)
 - ✅ Function scope boundaries (no cross-function pollution)
 - ✅ Multi-pass backward slicing (finds transitive dependencies)
@@ -149,6 +150,7 @@ print(json_output)
 - **Tree**: Classic tree view, best for quick scans
 - **Graph**: Grouped DAG view showing convergence/divergence in dataflow
 - **JSON**: Machine-readable for tool integration
+- **DOT**: Graphviz format for graph visualization
 
 ## 📚 Documentation
 

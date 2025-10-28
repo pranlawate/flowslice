@@ -44,17 +44,20 @@ def main():
         print(f"Forward slice variables: {forward_vars}")
         print("\nForward slice nodes:")
         for node in result.forward_slice:
-            print(f"  Line {node.line}: {node.code.strip()} (var={node.variable}, op={node.operation})")
+            code = node.code.strip()
+            print(f"  Line {node.line}: {code} (var={node.variable}, op={node.operation})")
 
         # Should include:
         # Line 10: detected_format = detect_file_format(file_path) - file_path passed
         assert 10 in forward_lines, "Should include line 10 where file_path is passed to function"
 
         # Line 11: process(detected_format) - derived variable used
-        assert 11 in forward_lines, "Should include line 11 where detected_format (derived from file_path) is used"
+        msg1 = "Should include line 11 where detected_format (derived from file_path) is used"
+        assert 11 in forward_lines, msg1
 
         # Should track detected_format as a derived variable
-        assert "detected_format" in forward_vars, "Should track detected_format as it's derived from file_path"
+        msg2 = "Should track detected_format as it's derived from file_path"
+        assert "detected_format" in forward_vars, msg2
 
     finally:
         Path(temp_path).unlink()

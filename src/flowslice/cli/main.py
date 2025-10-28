@@ -2,9 +2,11 @@
 
 import sys
 from pathlib import Path
+from typing import Union
 
 from flowslice.core.models import SliceDirection
 from flowslice.core.slicer import Slicer
+from flowslice.formatters.dot import DotFormatter
 from flowslice.formatters.graph import GraphFormatter
 from flowslice.formatters.json import JSONFormatter
 from flowslice.formatters.tree import TreeFormatter
@@ -31,9 +33,9 @@ def main() -> None:
 
     # Parse format
     format_str = format_str.lower()
-    if format_str not in ("tree", "graph", "json"):
+    if format_str not in ("tree", "graph", "json", "dot"):
         print(f"Error: Invalid format '{format_str}'")
-        print("Valid formats: tree, graph, json")
+        print("Valid formats: tree, graph, json, dot")
         sys.exit(1)
 
     # Parse criterion (file:line:variable)
@@ -55,10 +57,13 @@ def main() -> None:
     result = slicer.slice(file_path, line, variable, direction)
 
     # Select formatter
+    formatter: Union[GraphFormatter, JSONFormatter, DotFormatter, TreeFormatter]
     if format_str == "graph":
         formatter = GraphFormatter()
     elif format_str == "json":
         formatter = JSONFormatter()
+    elif format_str == "dot":
+        formatter = DotFormatter()
     else:  # tree (default)
         formatter = TreeFormatter()
 

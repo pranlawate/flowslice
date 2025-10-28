@@ -1,6 +1,5 @@
 """Unit tests for flowslice.formatters.tree."""
 
-import pytest
 
 from flowslice.core.models import SliceDirection, SliceNode, SliceResult
 from flowslice.formatters.tree import TreeFormatter

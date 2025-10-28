@@ -2,6 +2,7 @@
 
 import ast
 from pathlib import Path
+from typing import Optional
 
 from flowslice.core.import_resolver import ImportResolver
 from flowslice.core.models import SliceDirection, SliceNode, SliceResult
@@ -17,8 +18,8 @@ class SlicerVisitor(ast.NodeVisitor):
         direction: SliceDirection,
         source_lines: list[str],
         current_file: str = "<current>",
-        imports: dict[str, tuple[Path, str]] | None = None,
-        import_resolver: ImportResolver | None = None,
+        imports: Optional[dict[str, tuple[Path, str]]] = None,
+        import_resolver: Optional[ImportResolver] = None,
     ):
         self.target_var = target_var
         self.target_line = target_line
@@ -32,7 +33,7 @@ class SlicerVisitor(ast.NodeVisitor):
         self.current_function = "<module>"
         self.function_stack = ["<module>"]
         self.started = False
-        self.target_function: str | None = None  # Track function containing target
+        self.target_function: Optional[str] = None  # Track function containing target
 
         if direction == SliceDirection.BACKWARD:
             self.relevant_vars: set[str] = {target_var}
@@ -94,9 +95,13 @@ class SlicerVisitor(ast.NodeVisitor):
 
                         # Check if RHS is a function call to an imported function
                         # If so, follow into it because it produces the tracked variable
-                        if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name):
+                        if isinstance(node.value, ast.Call):
                             func_call = node.value
-                            if self.import_resolver and func_call.func.id in self.imports:
+                            if (
+                                isinstance(func_call.func, ast.Name)
+                                and self.import_resolver
+                                and func_call.func.id in self.imports
+                            ):
                                 # This function produces a tracked variable, so follow into it
                                 arg_vars = set()
                                 for arg in func_call.args:
@@ -254,7 +259,8 @@ class SlicerVisitor(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         """Track function calls."""
         # For forward slicing, track where variables are used in function calls
-        # For backward slicing, we only care about calls that PRODUCE tracked variables (handled in visit_Assign)
+        # For backward slicing, we only care about calls that PRODUCE tracked variables
+        # (handled in visit_Assign)
         if self.direction == SliceDirection.FORWARD and self.started:
             # Check arguments
             for arg in node.args:
@@ -317,7 +323,9 @@ class SlicerVisitor(ast.NodeVisitor):
             return self._get_base_name(node.value)
         return ""
 
-    def _analyze_cross_file_call(self, call_node: ast.Call, relevant_args: set[str], call_site_line: int) -> None:
+    def _analyze_cross_file_call(
+        self, call_node: ast.Call, relevant_args: set[str], call_site_line: int
+    ) -> None:
         """Analyze a function call that may be from an imported module.
 
         Args:
@@ -335,6 +343,8 @@ class SlicerVisitor(ast.NodeVisitor):
             return
 
         # Resolve the function to its source
+        if not self.import_resolver:
+            return
         result = self.import_resolver.resolve_function_source(func_name, self.imports)
         if not result:
             return
@@ -522,7 +532,8 @@ class SlicerVisitor(ast.NodeVisitor):
                 for item in stmt.items:
                     context_vars = self._get_names_from_expr(item.context_expr)
                     if context_vars & affected_vars:
-                        code = source_lines[stmt.lineno - 1] if stmt.lineno <= len(source_lines) else ""
+                        line_idx = stmt.lineno - 1
+                        code = source_lines[line_idx] if stmt.lineno <= len(source_lines) else ""
                         self.nodes.append(
                             SliceNode(
                                 file=file_path.name,
@@ -742,7 +753,8 @@ class Slicer:
             # For forward slicing, sort by (current_file first, then line, then other files)
             # This ensures cross-file nodes appear after their call sites
             target_file = Path(file_path).name
-            def sort_key(node):
+
+            def sort_key(node: SliceNode) -> tuple[int, int, int]:
                 # Nodes from target file come first (sorted by line)
                 # Nodes from other files come after (in insertion order)
                 if node.file == target_file:

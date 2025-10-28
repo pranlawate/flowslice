@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from flowslice.core.models import SliceDirection
 from flowslice.core.slicer import Slicer
 

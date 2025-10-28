@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from flowslice import JSONFormatter, Slicer, SliceDirection, TreeFormatter
+from flowslice import JSONFormatter, SliceDirection, Slicer, TreeFormatter
 
 
 class TestExampleIntegration:

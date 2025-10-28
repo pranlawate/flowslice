@@ -2,8 +2,6 @@
 
 import json
 
-import pytest
-
 from flowslice.core.models import SliceDirection, SliceNode, SliceResult
 from flowslice.formatters.json import JSONFormatter
 

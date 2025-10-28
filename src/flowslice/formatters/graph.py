@@ -24,12 +24,11 @@ class GraphFormatter:
 
         # Header
         output.append("╔" + "═" * 70 + "╗")
-        output.append(
-            f"║  GRAPH VIEW: {result.target_variable} @ "
+        header_text = (
+            f"  GRAPH VIEW: {result.target_variable} @ "
             f"{result.target_file}:{result.target_line}"
-            + " " * (70 - len(f"  GRAPH VIEW: {result.target_variable} @ {result.target_file}:{result.target_line}"))
-            + "║"
         )
+        output.append(f"║{header_text}{' ' * (70 - len(header_text))}║")
         output.append("╚" + "═" * 70 + "╝")
         output.append("")
 
@@ -81,7 +80,7 @@ class GraphFormatter:
                 output.append("")
 
                 # Find nodes for each dependency
-                dep_nodes = {}
+                dep_nodes: dict[str, list[SliceNode]] = {}
                 for dep in target.dependencies:
                     # Find the node that defines this dependency
                     for node in result.backward_slice:
@@ -101,13 +100,14 @@ class GraphFormatter:
                         output.append(f"     {'  ' if is_last else '│ '}   {node.code.strip()}")
                         if node.dependencies:
                             deps_str = ", ".join(node.dependencies)
-                            output.append(f"     {'  ' if is_last else '│ '}   └─ depends on: {deps_str}")
+                            indent = "  " if is_last else "│ "
+                            output.append(f"     {indent}   └─ depends on: {deps_str}")
                     else:
                         # External or not found
                         output.append(f"{prefix} {dep} (external or parameter)")
 
                     if not is_last:
-                        output.append(f"     │")
+                        output.append("     │")
 
         output.append("")
         return "\n".join(output)
@@ -154,7 +154,7 @@ class GraphFormatter:
                     deps_str = ", ".join(node.dependencies)
                     output.append(f"     {'  ' if is_last else '│ '}   └─ uses: {deps_str}")
                 if not is_last:
-                    output.append(f"     │")
+                    output.append("     │")
             output.append("")
 
         # Show function calls
@@ -178,7 +178,7 @@ class GraphFormatter:
                 output.append(f"{prefix} {func_name} (Line {node.line})")
                 output.append(f"     {'  ' if is_last else '│ '}   {node.code.strip()}")
                 if not is_last:
-                    output.append(f"     │")
+                    output.append("     │")
 
             output.append("")
 
@@ -193,7 +193,7 @@ class GraphFormatter:
                 output.append(f"{prefix} Line {node.line}: {node.operation}")
                 output.append(f"     {'  ' if is_last else '│ '}   {node.code.strip()}")
                 if not is_last:
-                    output.append(f"     │")
+                    output.append("     │")
 
             output.append("")
 

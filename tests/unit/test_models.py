@@ -1,6 +1,5 @@
 """Unit tests for flowslice.core.models."""
 
-import pytest
 
 from flowslice.core.models import SliceDirection, SliceNode, SliceResult
 
