@@ -9,23 +9,31 @@ class TreeFormatter:
     """Format slice results as a tree structure."""
 
     @staticmethod
-    def _format_code_line(code: str) -> str:
+    def _format_code_line(code: str, max_length: int = 100) -> str:
         """Format a code line for display, handling incomplete multi-line statements.
 
         Args:
             code: The code line to format
+            max_length: Maximum length before truncating (default: 100)
 
         Returns:
-            Formatted code with ellipsis for incomplete statements
+            Formatted code with ellipsis for incomplete/long statements
         """
         code = code.strip()
+
         # Check if line ends with opening bracket/paren without closing
-        if code and code[-1] in "([{" and code.count("(") > code.count(")"):
-            return code + "..."
-        if code and code[-1] in "([{" and code.count("[") > code.count("]"):
-            return code + "..."
-        if code and code[-1] in "([{" and code.count("{") > code.count("}"):
-            return code + "..."
+        has_unmatched_paren = code and code[-1] in "([{" and code.count("(") > code.count(")")
+        has_unmatched_bracket = code and code[-1] in "([{" and code.count("[") > code.count("]")
+        has_unmatched_brace = code and code[-1] in "([{" and code.count("{") > code.count("}")
+
+        if has_unmatched_paren or has_unmatched_bracket or has_unmatched_brace:
+            # Add continuation indicator
+            code = code + "...)"
+
+        # Truncate if too long
+        if len(code) > max_length:
+            code = code[:max_length - 3] + "..."
+
         return code
 
     @staticmethod
