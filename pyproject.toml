@@ -22,6 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Quality Assurance",
 ]
@@ -40,10 +41,10 @@ dev = [
 flowslice = "flowslice.cli.main:main"
 
 [project.urls]
-Homepage = "https://flowslice.dev"
-Documentation = "https://flowslice.dev"
-Repository = "https://github.com/flowslice/flowslice"
-Issues = "https://github.com/flowslice/flowslice/issues"
+Homepage = "https://github.com/pranlawate/flowslice"
+Documentation = "https://github.com/pranlawate/flowslice#readme"
+Repository = "https://github.com/pranlawate/flowslice"
+Issues = "https://github.com/pranlawate/flowslice/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowslice"]
