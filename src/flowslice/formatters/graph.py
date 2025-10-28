@@ -8,6 +8,26 @@ class GraphFormatter:
     """Format slices as grouped dependency graphs."""
 
     @staticmethod
+    def _format_code_line(code: str) -> str:
+        """Format a code line for display, handling incomplete multi-line statements.
+
+        Args:
+            code: The code line to format
+
+        Returns:
+            Formatted code with ellipsis for incomplete statements
+        """
+        code = code.strip()
+        # Check if line ends with opening bracket/paren without closing
+        if code and code[-1] in "([{" and code.count("(") > code.count(")"):
+            return code + "..."
+        if code and code[-1] in "([{" and code.count("[") > code.count("]"):
+            return code + "..."
+        if code and code[-1] in "([{" and code.count("{") > code.count("}"):
+            return code + "..."
+        return code
+
+    @staticmethod
     def format(
         result: SliceResult,
         direction: SliceDirection = SliceDirection.BOTH,
@@ -85,7 +105,8 @@ class GraphFormatter:
             target = target_nodes[0]
             target_text = f"  🎯 TARGET: {result.target_variable} (Line {result.target_line})"
             output.append(colorize(target_text, Colors.YELLOW, bold=True))
-            output.append(colorize(f"     └─ {target.code.strip()}", Colors.WHITE))
+            formatted_code = GraphFormatter._format_code_line(target.code)
+            output.append(colorize(f"     └─ {formatted_code}", Colors.WHITE))
             output.append("")
 
             # Group dependencies
@@ -119,7 +140,8 @@ class GraphFormatter:
                         dep_line = f"{prefix} {dep} (Line {node.line}){file_indicator}"
                         output.append(colorize(dep_line, dep_color, bold=is_cross_file))
                         indent = "  " if is_last else "│ "
-                        code_line = f"     {indent}   {node.code.strip()}"
+                        formatted_code = GraphFormatter._format_code_line(node.code)
+                        code_line = f"     {indent}   {formatted_code}"
                         output.append(colorize(code_line, Colors.BRIGHT_BLACK))
                         if node.dependencies:
                             deps_str = ", ".join(node.dependencies)

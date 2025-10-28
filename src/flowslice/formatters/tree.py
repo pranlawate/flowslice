@@ -9,6 +9,26 @@ class TreeFormatter:
     """Format slice results as a tree structure."""
 
     @staticmethod
+    def _format_code_line(code: str) -> str:
+        """Format a code line for display, handling incomplete multi-line statements.
+
+        Args:
+            code: The code line to format
+
+        Returns:
+            Formatted code with ellipsis for incomplete statements
+        """
+        code = code.strip()
+        # Check if line ends with opening bracket/paren without closing
+        if code and code[-1] in "([{" and code.count("(") > code.count(")"):
+            return code + "..."
+        if code and code[-1] in "([{" and code.count("[") > code.count("]"):
+            return code + "..."
+        if code and code[-1] in "([{" and code.count("{") > code.count("}"):
+            return code + "..."
+        return code
+
+    @staticmethod
     def _merge_nodes_by_line(nodes: list[SliceNode]) -> list[SliceNode]:
         """Merge multiple nodes from the same line into one.
 
@@ -104,7 +124,8 @@ class TreeFormatter:
                 marker = colorize(" ⭐ TARGET", Colors.YELLOW, bold=True) if is_target else ""
 
                 line_color = Colors.YELLOW if is_target else Colors.WHITE
-                line_text = f"    ├─ Line {node.line}: {node.code.strip()}"
+                formatted_code = TreeFormatter._format_code_line(node.code)
+                line_text = f"    ├─ Line {node.line}: {formatted_code}"
                 output.append(colorize(line_text, line_color) + marker)
 
                 if node.dependencies:
@@ -152,7 +173,8 @@ class TreeFormatter:
                 marker = colorize(" ⭐ TARGET", Colors.YELLOW, bold=True) if is_target else ""
 
                 line_color = Colors.YELLOW if is_target else Colors.WHITE
-                line_text = f"    ├─ Line {node.line}: {node.code.strip()}"
+                formatted_code = TreeFormatter._format_code_line(node.code)
+                line_text = f"    ├─ Line {node.line}: {formatted_code}"
                 output.append(colorize(line_text, line_color) + marker)
 
                 if node.dependencies:
