@@ -362,6 +362,28 @@ class SlicerVisitor(ast.NodeVisitor):
                 # Continue visiting to get nested attributes
                 self.generic_visit(node)
 
+            def visit_ListComp(self, node: ast.ListComp) -> None:
+                """Handle list comprehensions: [x*2 for x in source]."""
+                # Visit the iterator (source)
+                for generator in node.generators:
+                    self.visit(generator.iter)
+                # Note: Don't visit the target (x) as it's local to comprehension
+
+            def visit_SetComp(self, node: ast.SetComp) -> None:
+                """Handle set comprehensions: {x*2 for x in source}."""
+                for generator in node.generators:
+                    self.visit(generator.iter)
+
+            def visit_DictComp(self, node: ast.DictComp) -> None:
+                """Handle dict comprehensions: {k: v for k, v in items}."""
+                for generator in node.generators:
+                    self.visit(generator.iter)
+
+            def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+                """Handle generator expressions: (x*2 for x in source)."""
+                for generator in node.generators:
+                    self.visit(generator.iter)
+
             def _get_full_attr_path(self, node: ast.expr) -> str:
                 """Build full attribute path like 'obj.attr.subattr'."""
                 if isinstance(node, ast.Name):
