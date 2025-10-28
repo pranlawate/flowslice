@@ -20,6 +20,7 @@ class SlicerVisitor(ast.NodeVisitor):
         current_file: str = "<current>",
         imports: Optional[dict[str, tuple[Path, str]]] = None,
         import_resolver: Optional[ImportResolver] = None,
+        function_defs: Optional[dict[str, ast.FunctionDef]] = None,
     ):
         self.target_var = target_var
         self.target_line = target_line
@@ -28,6 +29,7 @@ class SlicerVisitor(ast.NodeVisitor):
         self.current_file = current_file  # Track current file for cross-file analysis
         self.imports = imports or {}  # Map of imported names to (file_path, original_name)
         self.import_resolver = import_resolver  # For resolving cross-file calls
+        self.function_defs = function_defs or {}  # Local function definitions
 
         self.nodes: list[SliceNode] = []
         self.current_function = "<module>"
@@ -96,20 +98,16 @@ class SlicerVisitor(ast.NodeVisitor):
                             )
                         )
 
-                        # Check if RHS is a function call to an imported function
+                        # Check if RHS is a function call (imported or local)
                         # If so, follow into it because it produces the tracked variable
                         if isinstance(node.value, ast.Call):
                             func_call = node.value
-                            if (
-                                isinstance(func_call.func, ast.Name)
-                                and self.import_resolver
-                                and func_call.func.id in self.imports
-                            ):
-                                # This function produces a tracked variable, so follow into it
+                            if isinstance(func_call.func, ast.Name):
                                 arg_vars = set()
                                 for arg in func_call.args:
                                     arg_vars.update(self._get_names_from_expr(arg))
                                 if arg_vars:  # Only if it has arguments
+                                    # Try cross-file first, falls back to local
                                     self._analyze_cross_file_call(func_call, arg_vars, node.lineno)
 
                         # Add RHS vars to relevant set
@@ -385,6 +383,45 @@ class SlicerVisitor(ast.NodeVisitor):
             return self._get_base_name(node.value)
         return ""
 
+    def _analyze_local_function_call(
+        self, call_node: ast.Call, relevant_args: set[str], call_site_line: int
+    ) -> None:
+        """Analyze a call to a local function (defined in same file).
+
+        Args:
+            call_node: The Call node to analyze
+            relevant_args: Set of argument variable names that are relevant to the slice
+            call_site_line: Line number where the function is called
+        """
+        if not isinstance(call_node.func, ast.Name):
+            return
+
+        func_name = call_node.func.id
+
+        # Check if this is a local function
+        if func_name not in self.function_defs:
+            return
+
+        func_def = self.function_defs[func_name]
+
+        # Map call arguments to function parameters
+        param_mapping = {}
+        for i, arg in enumerate(call_node.args):
+            if i < len(func_def.args.args):
+                param_name = func_def.args.args[i].arg
+                arg_vars = self._get_names_from_expr(arg)
+                if arg_vars & relevant_args:
+                    param_mapping[param_name] = arg_vars
+
+        if not param_mapping:
+            return
+
+        # Analyze the local function body for dataflow
+        if self.direction == SliceDirection.BACKWARD:
+            self._backward_slice_local_function(func_def, param_mapping)
+        else:  # FORWARD
+            self._forward_slice_local_function(func_def, param_mapping)
+
     def _analyze_cross_file_call(
         self, call_node: ast.Call, relevant_args: set[str], call_site_line: int
     ) -> None:
@@ -402,6 +439,8 @@ class SlicerVisitor(ast.NodeVisitor):
 
         # Check if this function is imported
         if func_name not in self.imports:
+            # Check if it's a local function instead
+            self._analyze_local_function_call(call_node, relevant_args, call_site_line)
             return
 
         # Resolve the function to its source
@@ -465,6 +504,42 @@ class SlicerVisitor(ast.NodeVisitor):
         for stmt in func_def.body:
             self._track_statement_forward(
                 stmt, affected_vars, file_path, source_lines, func_def.name
+            )
+
+    def _backward_slice_local_function(
+        self, func_def: ast.FunctionDef, param_mapping: dict[str, set[str]]
+    ) -> None:
+        """Perform backward slicing on a local function.
+
+        Args:
+            func_def: The function definition AST node
+            param_mapping: Mapping of parameter names to argument variables
+        """
+        # Start tracking from the parameters we care about
+        tracked_vars = set(param_mapping.keys())
+
+        # Walk through the function body to track dependencies
+        for stmt in func_def.body:
+            self._track_statement_backward(
+                stmt, tracked_vars, Path(self.current_file), self.source_lines, func_def.name
+            )
+
+    def _forward_slice_local_function(
+        self, func_def: ast.FunctionDef, param_mapping: dict[str, set[str]]
+    ) -> None:
+        """Perform forward slicing on a local function.
+
+        Args:
+            func_def: The function definition AST node
+            param_mapping: Mapping of parameter names to argument variables
+        """
+        # Start tracking from the parameters we care about
+        affected_vars = set(param_mapping.keys())
+
+        # Walk through the function body to see where parameters are used
+        for stmt in func_def.body:
+            self._track_statement_forward(
+                stmt, affected_vars, Path(self.current_file), self.source_lines, func_def.name
             )
 
     def _backward_slice_imported_function(
@@ -719,6 +794,22 @@ class Slicer:
         self.root_path = Path(root_path)
         self.enable_cross_file = enable_cross_file
         self.import_resolver = ImportResolver(self.root_path) if enable_cross_file else None
+        self.function_defs: dict[str, ast.FunctionDef] = {}  # Cache of function definitions
+
+    def _find_function_definitions(self, tree: ast.AST) -> dict[str, ast.FunctionDef]:
+        """Find all function definitions in the AST.
+
+        Args:
+            tree: The AST to search
+
+        Returns:
+            Dictionary mapping function names to their FunctionDef nodes
+        """
+        functions = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef):
+                functions[node.name] = node
+        return functions
 
     def slice(
         self,
@@ -749,6 +840,9 @@ class Slicer:
         source_lines = source.split("\n")
         tree = ast.parse(source, filename=str(full_path))
 
+        # Find all function definitions in the file for inter-procedural analysis
+        self.function_defs = self._find_function_definitions(tree)
+
         # Parse imports if cross-file analysis is enabled
         imports = {}
         if self.import_resolver:
@@ -777,6 +871,7 @@ class Slicer:
                     current_file=Path(file_path).name,
                     imports=imports,
                     import_resolver=self.import_resolver,
+                    function_defs=self.function_defs,
                 )
                 # Start with accumulated relevant vars from previous passes
                 backward_visitor.relevant_vars = relevant_vars.copy()
@@ -810,6 +905,7 @@ class Slicer:
                 current_file=Path(file_path).name,
                 imports=imports,
                 import_resolver=self.import_resolver,
+                function_defs=self.function_defs,
             )
             forward_visitor.visit(tree)
             # For forward slicing, sort by (current_file first, then line, then other files)
