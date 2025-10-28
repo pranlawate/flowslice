@@ -3,7 +3,7 @@
 Trace where your variables come from and where they go.
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 from flowslice.core.models import SliceDirection, SliceResult
 from flowslice.core.slicer import Slicer

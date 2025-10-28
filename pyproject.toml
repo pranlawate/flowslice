@@ -4,17 +4,20 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flowslice"
-version = "0.1.0"
+version = "1.0.0"
 description = "Dataflow slicing for Python - trace variable flow through your code"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
 authors = [
-    {name = "flowslice contributors"}
+    {name = "Pran Lawate", email = "pranlawate@example.com"}
+]
+maintainers = [
+    {name = "Pran Lawate", email = "pranlawate@example.com"}
 ]
 keywords = ["dataflow", "slicing", "static-analysis", "program-analysis", "ast"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -25,6 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
 ]
 
 dependencies = []
@@ -48,6 +52,35 @@ Issues = "https://github.com/pranlawate/flowslice/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flowslice"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/pyproject.toml",
+]
+exclude = [
+    "/.github",
+    "/.claude",
+    "/archive",
+    "/dist",
+    "/htmlcov",
+    "*.md.old",
+    "NEXT_SESSION.md",
+    "SESSION_SUMMARY.md",
+    "REMAINING_WORK.md",
+    "KNOWN_ISSUES.md",
+    "INDEX.md",
+    "ROADMAP.md",
+    "COMPLEX_DATAFLOW_HANDLING.md",
+    "CROSS_FILE_ANALYSIS.md",
+    "VISUALIZATION_OPTIONS.md",
+    "example.py",
+    "flowslice_poc.py",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
